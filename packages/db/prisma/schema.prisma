@@ -149,6 +149,12 @@ model DraftRevision {
   activeTypingMs      Int @default(0)
   sessionCount        Int @default(0)
 
+  // Welford running mean/variance aggregate for keystroke-interval cadence (US-3.2's
+  // uniform-cadence penalty). variance = keystrokeIntervalM2 / keystrokeIntervalCount when count > 1.
+  keystrokeIntervalCount  Int   @default(0)
+  keystrokeIntervalMeanMs Float @default(0)
+  keystrokeIntervalM2     Float @default(0)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

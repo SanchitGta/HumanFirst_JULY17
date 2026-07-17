@@ -11,6 +11,7 @@ export default auth((req) => {
 });
 
 export const config = {
-  // Token routes do their own auth() check and return 401 JSON rather than redirecting.
-  matcher: ["/dashboard/:path*", "/settings/:path*"],
+  // Token and article API routes do their own auth() check and return 401 JSON rather
+  // than redirecting.
+  matcher: ["/dashboard/:path*", "/settings/:path*", "/articles/:path*"],
 };
