@@ -7,3 +7,4 @@ dist
 packages/db/src/generated
 *.tsbuildinfo
 .DS_Store
+.mindlap/config.json
