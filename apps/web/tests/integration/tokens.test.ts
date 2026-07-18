@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 
 interface FakeMCPToken {
   id: string;
@@ -47,6 +47,17 @@ vi.mock("@humanfirst/db", () => ({
         return updated;
       }),
     },
+  },
+  hashToken: (raw: string) => createHash("sha256").update(raw).digest("hex"),
+  generateToken: () => {
+    const raw = "mcp_pat_" + randomUUID().replace(/-/g, "");
+    return { raw, hash: createHash("sha256").update(raw).digest("hex"), prefix: raw.slice(0, 12) };
+  },
+  verifyPatAndGetUser: async (raw: string) => {
+    const hash = createHash("sha256").update(raw).digest("hex");
+    const token = [...mcpTokens.values()].find((t) => t.tokenHash === hash);
+    if (!token || token.revokedAt) return null;
+    return { userId: token.userId, tokenId: token.id };
   },
 }));
 

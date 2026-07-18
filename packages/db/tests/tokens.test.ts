@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 
 const mcpTokenStore = new Map<string, any>();
 
-vi.mock("@humanfirst/db", () => ({
+vi.mock("../src/client", () => ({
   prisma: {
     mCPToken: {
       findUnique: vi.fn(async ({ where: { tokenHash } }: any) => {
@@ -22,7 +22,7 @@ vi.mock("@humanfirst/db", () => ({
   },
 }));
 
-import { generateToken, hashToken, verifyPatAndGetUser } from "@/lib/tokens";
+import { generateToken, hashToken, verifyPatAndGetUser } from "../src/tokens";
 
 describe("tokens", () => {
   beforeEach(() => {
