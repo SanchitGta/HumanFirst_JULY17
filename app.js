@@ -212,7 +212,7 @@ function showToast(msg) {
 
 function spawnConfetti() {
   const display = document.getElementById('round-display');
-  const colors = ['#a20b0b', '#1c5386', '#16a34a', '#f59e0b', '#8ba8c9'];
+  const colors = ['#1E3A2F', '#2D5442', '#7AA896', '#D5E5DE', '#16a34a', '#f59e0b'];
   for (let i = 0; i < 18; i++) {
     const c = document.createElement('div');
     c.className = 'confetti-piece';

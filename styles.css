@@ -1,13 +1,14 @@
-@import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap');
+@import url('https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
 :root {
-  --surface:#fefefe;--surface-sec:#f7f9fa;--surface-ter:#eceef0;
-  --border:#d9d9d9;--border-light:#e4e4e4;
+  --surface:#E7EEEA;--surface-sec:#DCE6E1;--surface-ter:#D1DBD6;
+  --border:#BEC8C4;--border-light:#CDDBD6;
   --fg:#1b1b1b;--fg-sec:#3a3a3a;--muted:#9c9c9c;--subtle:#bcbcbc;
   --red:#a20b0b;--red-light:#e55e5e;--red-lighter:#ee9595;--red-lightest:#f6c9c9;
-  --blue:#1c5386;--blue-light:#1e5f9b;--blue-lighter:#8ba8c9;--blue-lightest:#dce3eb;--blue-dark:#193856;
+  --blue:#1E3A2F;--blue-light:#2D5442;--blue-lighter:#7AA896;--blue-lightest:#D5E5DE;--blue-dark:#152B22;
   --grey:#9c9c9c;--grey-light:#bcbcbc;--grey-lighter:#d0d0d0;--grey-lightest:#e4e4e4;--grey-dark:#5c5c5c;
   --success:#16a34a;--success-light:#dcfce7;--success-mid:#86efac;
   --warning:#f59e0b;--danger:#dc2626;
@@ -18,11 +19,11 @@
 }
 @media(prefers-color-scheme:dark){
   :root{
-    --surface:#0f1013;--surface-sec:#161820;--surface-ter:#1e2028;
-    --border:#2a2c36;--border-light:#222430;
+    --surface:#0E1512;--surface-sec:#141E1A;--surface-ter:#1B2822;
+    --border:#283830;--border-light:#203029;
     --fg:#f0f0f4;--fg-sec:#b0b0bc;--muted:#505060;--subtle:#383848;
     --red-lightest:#1a0808;--red-lighter:#4a1a1a;--red-light:#c44040;
-    --blue-lightest:#080e1c;--blue-lighter:#1a2840;
+    --blue:#5A8A76;--blue-lightest:#0A1610;--blue-lighter:#2E5242;
     --grey-lightest:#181820;--grey-lighter:#242430;
     --success-light:#052e16;--success-mid:#166534;
   }
@@ -34,8 +35,8 @@ html,body{height:100%;font-family:'Inter',sans-serif;background:var(--surface);c
 .app{min-height:100vh;display:flex;flex-direction:column}
 .top-bar{height:56px;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:12px;background:var(--surface);position:sticky;top:0;z-index:100;backdrop-filter:blur(8px)}
 .top-bar-brand{display:flex;align-items:center;gap:8px}
-.top-bar-brand svg{color:var(--red)}
-.top-bar-title{font-family:'Exo 2',sans-serif;font-size:16px;font-weight:700;color:var(--fg)}
+.top-bar-brand svg{color:var(--blue)}
+.top-bar-title{font-family:'General Sans',system-ui,-apple-system,sans-serif;font-size:16px;font-weight:700;color:var(--fg)}
 
 .main{flex:1;display:grid;grid-template-columns:1fr 320px;gap:0;max-width:1100px;margin:0 auto;width:100%;padding:0 24px 32px}
 .game-col{padding:32px 32px 0 0;border-right:1px solid var(--border)}
@@ -45,7 +46,7 @@ html,body{height:100%;font-family:'Inter',sans-serif;background:var(--surface);c
 .scoreboard{display:grid;grid-template-columns:repeat(3,1fr);align-items:center;gap:16px;margin-bottom:32px}
 .score-card{text-align:center;padding:16px 12px;background:var(--surface-sec);border:1px solid var(--border-light);border-radius:var(--radius-md)}
 .score-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin-bottom:6px}
-.score-value{font-family:'Exo 2',sans-serif;font-size:36px;font-weight:800;line-height:1;color:var(--fg)}
+.score-value{font-family:'General Sans',system-ui,-apple-system,sans-serif;font-size:36px;font-weight:800;line-height:1;color:var(--fg)}
 .score-card.player .score-value{color:var(--blue)}
 .score-card.cpu .score-value{color:var(--red)}
 
@@ -54,12 +55,12 @@ html,body{height:100%;font-family:'Inter',sans-serif;background:var(--surface);c
 .choice-slot{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px}
 .choice-icon{width:72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:36px;transition:all .3s cubic-bezier(.34,1.56,.64,1)}
 .choice-icon.player-icon{background:var(--blue-lightest);border:2px solid var(--blue-lighter)}
-.choice-icon.cpu-icon{background:var(--red-lightest);border:2px solid var(--red-lighter)}
+.choice-icon.cpu-icon{background:var(--surface-ter);border:2px solid var(--border)}
 .choice-icon.empty{background:var(--surface-ter);border:2px dashed var(--border)}
 .choice-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.6px;color:var(--muted)}
-.vs-divider{font-family:'Exo 2',sans-serif;font-size:18px;font-weight:800;color:var(--border);flex-shrink:0}
+.vs-divider{font-family:'General Sans',system-ui,-apple-system,sans-serif;font-size:18px;font-weight:800;color:var(--border);flex-shrink:0}
 
-.result-banner{position:absolute;bottom:0;left:0;right:0;padding:8px 16px;text-align:center;font-family:'Exo 2',sans-serif;font-size:14px;font-weight:700;letter-spacing:0.3px;transition:all .3s;opacity:0}
+.result-banner{position:absolute;bottom:0;left:0;right:0;padding:8px 16px;text-align:center;font-family:'General Sans',system-ui,-apple-system,sans-serif;font-size:14px;font-weight:700;letter-spacing:0.3px;transition:all .3s;opacity:0}
 .result-banner.show{opacity:1}
 .result-banner.win{background:var(--success-light);color:var(--success)}
 .result-banner.lose{background:var(--red-lightest);color:var(--red)}
@@ -96,7 +97,7 @@ html,body{height:100%;font-family:'Inter',sans-serif;background:var(--surface);c
 .round-counter{font-size:12px;color:var(--muted);margin-left:auto}
 
 /* History panel */
-.panel-title{font-family:'Exo 2',sans-serif;font-size:14px;font-weight:700;color:var(--fg);margin-bottom:16px;display:flex;align-items:center;justify-content:space-between}
+.panel-title{font-family:'General Sans',system-ui,-apple-system,sans-serif;font-size:14px;font-weight:700;color:var(--fg);margin-bottom:16px;display:flex;align-items:center;justify-content:space-between}
 .panel-title span{font-size:11px;font-weight:500;color:var(--muted);font-family:'Inter',sans-serif}
 .history-list{display:flex;flex-direction:column;gap:8px;max-height:480px;overflow-y:auto}
 .history-list::-webkit-scrollbar{width:4px}
@@ -165,7 +166,7 @@ html,body{height:100%;font-family:'Inter',sans-serif;background:var(--surface);c
 
 /* Thinking dots */
 .thinking{display:flex;gap:4px;align-items:center;justify-content:center;height:72px;width:72px}
-.dot{width:8px;height:8px;border-radius:50%;background:var(--red-lighter);animation:dotPulse 1.2s ease-in-out infinite}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--blue-lighter);animation:dotPulse 1.2s ease-in-out infinite}
 .dot:nth-child(2){animation-delay:.2s}
 .dot:nth-child(3){animation-delay:.4s}
 @keyframes dotPulse{0%,80%,100%{transform:scale(0.7);opacity:.5}40%{transform:scale(1);opacity:1}}
