@@ -30,6 +30,21 @@
   const SHIELD_SIZE         = 20;     // px — shield pickup square side
   const HITBOX_SHRINK       = 4;      // px — inset per side on player collision box for fairness
 
+  // These hex values must stay in sync with the :root custom properties of the
+  // same name in index.html (canvas draws can't read CSS variables).
+  const COLOR_PLAYER    = '#00f6ff';
+  const COLOR_OBSTACLE  = '#ff2954';
+  const COLOR_CRYSTAL   = '#39ff88';
+  const COLOR_SHIELD    = '#ffd23f';
+  const GLOW_BLUR       = 14;     // px — shadowBlur radius for entity glow
+
+  const PARTICLE_MAX_COUNT     = 80;   // hard cap on live particles
+  const PARTICLE_LIFE_MS       = 500;  // ms — crystal/shield burst particle lifetime
+  const PARTICLE_DEATH_LIFE_MS = 700;  // ms — game-over burst particle lifetime
+  const PARTICLE_SPEED_MIN     = 0.5;  // px/frame at 60fps
+  const PARTICLE_SPEED_MAX     = 2.5;  // px/frame at 60fps
+  const PARTICLE_SIZE          = 3;    // px — particle square side
+
   let canvas, ctx;
   let currentState  = null;
   let rafId         = null;
@@ -51,6 +66,7 @@
   let shieldTimer   = 0;    // ms since last shield pickup was spawned
   let input         = { left: false, right: false };
   let touch         = { startX: 0, startY: 0, swipeLeft: false, swipeRight: false };
+  let particles     = [];   // active visual burst particles: {x, y, vx, vy, life, maxLife, color}
 
   // ─── Persistence ────────────────────────────────────────────────────────────
 
@@ -211,6 +227,8 @@
       shields[i].y += shields[i].speed * (dt / 16.67);
     }
 
+    updateParticles(dt);
+
     // ── player bounds, computed once for all collision passes ───────────────
     var pb = {
       x: player.x - player.width  / 2 + HITBOX_SHRINK,
@@ -228,6 +246,8 @@
           document.getElementById('hud-shield').hidden = true;
           combo = 1; comboDecay = 0;
           updateHudCombo();
+          spawnParticles(obstacles[i].x + obstacles[i].w / 2, obstacles[i].y + obstacles[i].h / 2,
+            COLOR_SHIELD, 14, PARTICLE_LIFE_MS);
           obstacles.splice(i, 1); // consume the obstacle that hit the shield
         } else {
           hitObstacle = true;
@@ -236,6 +256,7 @@
     }
     if (hitObstacle) {
       combo = 1; comboDecay = 0;
+      spawnParticles(player.x, player.y, COLOR_OBSTACLE, 24, PARTICLE_DEATH_LIFE_MS);
       transitionTo(STATES.GAME_OVER);
       return;
     }
@@ -248,6 +269,7 @@
         score += BASE_CRYSTAL_SCORE * combo;
         updateHudScore();
         updateHudCombo();
+        spawnParticles(c.x + c.w / 2, c.y + c.h / 2, COLOR_CRYSTAL, 8, PARTICLE_LIFE_MS);
         return false; // collected — remove from array
       }
       if (c.y > player.y + player.height / 2) {
@@ -262,6 +284,7 @@
       if (overlaps(pb, s)) {
         hasShield = true;
         document.getElementById('hud-shield').hidden = false;
+        spawnParticles(s.x + s.w / 2, s.y + s.h / 2, COLOR_SHIELD, 10, PARTICLE_LIFE_MS);
         return false;
       }
       if (s.y > canvasHeight + s.h) return false; // offscreen, cull
@@ -271,40 +294,91 @@
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
-  function render() {
-    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-    ctx.fillStyle = '#0a0a0f';
-    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-
-    if (currentState === STATES.PLAYING || currentState === STATES.PAUSED) {
-      ctx.fillStyle = '#00ffff';
-      ctx.fillRect(
-        player.x - player.width  / 2,
-        player.y - player.height / 2,
-        player.width,
-        player.height
-      );
+  function drawPlayer() {
+    ctx.save();
+    ctx.shadowColor = COLOR_PLAYER; ctx.shadowBlur = GLOW_BLUR;
+    var grad = ctx.createRadialGradient(player.x, player.y, 2, player.x, player.y, player.width / 2);
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(0.4, COLOR_PLAYER);
+    grad.addColorStop(1, 'rgba(0,246,255,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, player.width / 2, 0, Math.PI * 2);
+    ctx.fill();
+    if (hasShield) {
+      ctx.shadowColor = COLOR_SHIELD; ctx.shadowBlur = GLOW_BLUR;
+      ctx.strokeStyle = COLOR_SHIELD; ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, player.width / 2 + 6, 0, Math.PI * 2);
+      ctx.stroke();
     }
+    ctx.restore();
+  }
 
-    // Draw obstacles (red/orange — placeholder; #262 will theme)
-    ctx.fillStyle = '#ff4136';
+  function drawObstacles() {
+    ctx.save();
+    ctx.shadowColor = COLOR_OBSTACLE; ctx.shadowBlur = GLOW_BLUR; ctx.fillStyle = COLOR_OBSTACLE;
     for (var i = 0; i < obstacles.length; i++) {
       ctx.fillRect(obstacles[i].x, obstacles[i].y, obstacles[i].w, obstacles[i].h);
     }
+    ctx.restore();
+  }
 
-    // Draw crystals (green — placeholder; #262 will theme)
-    ctx.fillStyle = '#2ecc40';
+  function drawCrystals() {
+    ctx.save();
+    ctx.shadowColor = COLOR_CRYSTAL; ctx.shadowBlur = GLOW_BLUR; ctx.fillStyle = COLOR_CRYSTAL;
     for (var j = 0; j < crystals.length; j++) {
-      ctx.fillRect(crystals[j].x, crystals[j].y, crystals[j].w, crystals[j].h);
+      var c  = crystals[j];
+      var cx = c.x + c.w / 2;
+      var cy = c.y + c.h / 2;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(Math.PI / 4);
+      ctx.fillRect(-c.w / 2, -c.h / 2, c.w, c.h); // 45°-rotated square = diamond
+      ctx.restore();
     }
+    ctx.restore();
+  }
 
-    // Draw shields on canvas (yellow — placeholder; #262 will theme)
-    ctx.fillStyle = '#ffdc00';
+  function drawShields() {
+    ctx.save();
+    ctx.shadowColor = COLOR_SHIELD; ctx.shadowBlur = GLOW_BLUR;
+    ctx.strokeStyle = COLOR_SHIELD; ctx.lineWidth = 2;
     for (var k = 0; k < shields.length; k++) {
-      ctx.fillRect(shields[k].x, shields[k].y, shields[k].w, shields[k].h);
+      var s  = shields[k];
+      var cx = s.x + s.w / 2;
+      var cy = s.y + s.h / 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, s.w / 2, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawParticles() {
+    // no shadowBlur here — kept cheap, particle count can be high
+    for (var i = 0; i < particles.length; i++) {
+      var p     = particles[i];
+      var alpha = Math.max(0, p.life / p.maxLife);
+      ctx.fillStyle = withAlpha(p.color, alpha);
+      ctx.fillRect(p.x - PARTICLE_SIZE / 2, p.y - PARTICLE_SIZE / 2, PARTICLE_SIZE, PARTICLE_SIZE);
+    }
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    // no opaque fill — CSS-animated background on #game-container::before shows through
+
+    if (currentState === STATES.PLAYING || currentState === STATES.PAUSED) {
+      drawPlayer();
     }
 
-    // TODO #262: replace all fillRect calls with styled/glow versions
+    drawObstacles();
+    drawCrystals();
+    drawShields();
+    drawParticles();
+
+    ctx.shadowBlur = 0; // defensive reset so no state leaks past this frame
   }
 
   // ─── Reset ──────────────────────────────────────────────────────────────────
@@ -328,6 +402,7 @@
     spawnTimer   = 0;
     crystalTimer = 0;
     shieldTimer  = 0;
+    particles    = [];
     transitionTo(STATES.PLAYING);
   }
 
@@ -350,11 +425,43 @@
     shields.push({ x: x, y: -SHIELD_SIZE, w: SHIELD_SIZE, h: SHIELD_SIZE, speed: speed });
   }
 
+  // ─── Particles ───────────────────────────────────────────────────────────────
+
+  function spawnParticles(x, y, color, count, lifeMs) {
+    for (var i = 0; i < count; i++) {
+      if (particles.length >= PARTICLE_MAX_COUNT) particles.shift(); // drop oldest first
+      var angle = Math.random() * Math.PI * 2;
+      var speed = PARTICLE_SPEED_MIN + Math.random() * (PARTICLE_SPEED_MAX - PARTICLE_SPEED_MIN);
+      particles.push({
+        x: x, y: y,
+        vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+        life: lifeMs, maxLife: lifeMs, color: color
+      });
+    }
+  }
+
+  function updateParticles(dt) {
+    for (var i = particles.length - 1; i >= 0; i--) {
+      var p = particles[i];
+      p.x += p.vx * (dt / 16.67);
+      p.y += p.vy * (dt / 16.67);
+      p.life -= dt;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+  }
+
   // ─── Collision ───────────────────────────────────────────────────────────────
 
   function overlaps(a, b) {
     return a.x < b.x + b.w && a.x + a.w > b.x &&
            a.y < b.y + b.h && a.y + a.h > b.y;
+  }
+
+  function withAlpha(hexColor, alpha) {
+    var r = parseInt(hexColor.slice(1, 3), 16);
+    var g = parseInt(hexColor.slice(3, 5), 16);
+    var b = parseInt(hexColor.slice(5, 7), 16);
+    return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
   }
 
   // ─── HUD ─────────────────────────────────────────────────────────────────────
@@ -493,7 +600,8 @@
     getSurvivalTime: function () { return survivalTime; },
     getObstacles: function () { return obstacles; },
     getCrystals: function () { return crystals; },
-    getShields: function () { return shields; }
+    getShields: function () { return shields; },
+    getParticles: function () { return particles; }
   };
 
 })();
