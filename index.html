@@ -12,6 +12,96 @@
     .screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none;
               flex-direction: column; align-items: center; justify-content: center; }
     .screen--visible { display: flex; }
+
+    :root {
+      --neon-cyan:    #00f6ff;   /* player */
+      --neon-red:     #ff2954;   /* obstacles / danger */
+      --neon-green:   #39ff88;   /* crystals / reward */
+      --neon-gold:    #ffd23f;   /* shields */
+      --neon-purple:  #b026ff;   /* UI accent: borders, buttons, headings */
+      --glass-bg:      rgba(10, 10, 24, 0.45);
+      --glass-border:  rgba(0, 246, 255, 0.35);
+      --glass-shadow:  0 0 24px rgba(176, 38, 255, 0.25), 0 0 2px rgba(0, 246, 255, 0.6) inset;
+      --text-primary:  #eafcff;
+    }
+
+    #game-container::before {
+      content: '';
+      position: absolute; inset: 0; z-index: 0; pointer-events: none;
+      background:
+        radial-gradient(circle at 20% 20%, rgba(176,38,255,0.25), transparent 45%),
+        radial-gradient(circle at 80% 80%, rgba(0,246,255,0.20), transparent 45%),
+        repeating-linear-gradient(0deg,  rgba(0,246,255,0.06) 0 1px, transparent 1px 80px),
+        repeating-linear-gradient(90deg, rgba(0,246,255,0.06) 0 1px, transparent 1px 80px),
+        #05050a;
+      background-size: 200% 200%, 200% 200%, 80px 80px, 80px 80px, auto;
+      animation: bgDrift 18s ease-in-out infinite alternate;
+    }
+    @keyframes bgDrift {
+      0%   { background-position: 0% 0%, 100% 100%, 0 0, 0 0, 0 0; }
+      100% { background-position: 60% 40%, 40% 60%, 40px 40px, 40px 40px, 0 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #game-container::before { animation: none; }
+    }
+
+    #gameCanvas { z-index: 1; }
+    .screen { z-index: 2; }
+
+    #screen-hud { pointer-events: none; }   /* let touches pass through to the canvas */
+    #screen-hud #btn-pause { pointer-events: auto; }  /* except the one real control */
+
+    .glass-panel {
+      background: var(--glass-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--glass-border);
+      border-radius: clamp(12px, 2vw, 20px);
+      box-shadow: var(--glass-shadow);
+      padding: clamp(16px, 4vw, 32px);
+      display: flex; flex-direction: column; align-items: center; gap: clamp(8px, 2vw, 16px);
+      color: var(--text-primary);
+      max-width: min(90vw, 420px);
+      text-align: center;
+    }
+    @supports not (backdrop-filter: blur(1px)) {
+      .glass-panel { background: rgba(8, 8, 20, 0.85); }
+    }
+
+    #screen-hud { align-items: flex-start; justify-content: center; padding-top: clamp(12px, 3vw, 28px); }
+    .hud-bar {
+      flex-direction: row; max-width: min(92vw, 560px); width: 100%;
+      justify-content: space-between; padding: clamp(10px, 2vw, 18px) clamp(14px, 3vw, 24px);
+    }
+
+    h1, h2 {
+      font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--neon-cyan);
+      text-shadow: 0 0 8px var(--neon-cyan), 0 0 24px rgba(0,246,255,0.6);
+    }
+    .btn {
+      font: inherit; letter-spacing: 0.05em; text-transform: uppercase;
+      color: var(--text-primary); background: rgba(176,38,255,0.12);
+      border: 1px solid var(--neon-purple); border-radius: 8px;
+      padding: clamp(10px, 2.5vw, 14px) clamp(20px, 5vw, 32px);
+      min-height: 44px; min-width: 44px;   /* touch target */
+      cursor: pointer; transition: box-shadow 0.15s ease, transform 0.15s ease;
+    }
+    .btn:hover, .btn:focus-visible {
+      box-shadow: 0 0 16px var(--neon-purple), 0 0 4px var(--neon-cyan) inset;
+      transform: translateY(-1px);
+    }
+    .btn:focus-visible { outline: 2px solid var(--neon-cyan); outline-offset: 2px; }
+    .btn:disabled {
+      opacity: 0.35; cursor: default; box-shadow: none; transform: none;
+    }
+    #hud-shield { color: var(--neon-gold); text-shadow: 0 0 8px var(--neon-gold); }
+    #hud-shield[hidden] { display: none; }
+
+    @media (max-width: 480px) {
+      .hud-bar { flex-wrap: wrap; row-gap: 6px; }
+      h1 { font-size: 1.6rem; }
+    }
   </style>
 </head>
 <body>
@@ -19,30 +109,40 @@
     <canvas id="gameCanvas" role="img" aria-label="Neon Dash game area"></canvas>
 
     <div id="screen-home" class="screen" aria-label="Home screen">
-      <h1>Neon Dash</h1>
-      <p id="home-highscore">Best: 0</p>
-      <button id="btn-play" aria-label="Start game">Play</button>
+      <div class="glass-panel">
+        <h1>Neon Dash</h1>
+        <p id="home-highscore">Best: 0</p>
+        <p class="hint">Arrows / A-D / Swipe to move</p>
+        <button id="btn-play" class="btn" aria-label="Start game">Play</button>
+        <button id="btn-settings" class="btn" disabled aria-label="Settings (coming soon)">Settings</button>
+      </div>
     </div>
 
     <div id="screen-hud" class="screen" aria-label="Game HUD" aria-live="polite">
-      <span id="hud-score">0</span>
-      <span id="hud-combo">x1</span>
-      <span id="hud-shield" aria-label="Shield active" hidden>Shield</span>
-      <button id="btn-pause" aria-label="Pause game">Pause</button>
+      <div class="glass-panel hud-bar">
+        <span id="hud-score">0</span>
+        <span id="hud-combo">x1</span>
+        <span id="hud-shield" hidden aria-label="Shield active">Shield</span>
+        <button id="btn-pause" class="btn" aria-label="Pause game">Pause</button>
+      </div>
     </div>
 
     <div id="screen-pause" class="screen" aria-label="Paused">
-      <h2>Paused</h2>
-      <button id="btn-resume" aria-label="Resume game">Resume</button>
-      <button id="btn-pause-home" aria-label="Return to home screen">Home</button>
+      <div class="glass-panel">
+        <h2>Paused</h2>
+        <button id="btn-resume" class="btn" aria-label="Resume game">Resume</button>
+        <button id="btn-pause-home" class="btn" aria-label="Return to home screen">Home</button>
+      </div>
     </div>
 
     <div id="screen-gameover" class="screen" aria-label="Game over">
-      <h2>Game Over</h2>
-      <p id="go-score">Score: 0</p>
-      <p id="go-best">Best: 0</p>
-      <button id="btn-restart" aria-label="Restart game">Restart</button>
-      <button id="btn-go-home" aria-label="Return to home screen">Home</button>
+      <div class="glass-panel">
+        <h2>Game Over</h2>
+        <p id="go-score">Score: 0</p>
+        <p id="go-best">Best: 0</p>
+        <button id="btn-restart" class="btn" aria-label="Restart game">Restart</button>
+        <button id="btn-go-home" class="btn" aria-label="Return to home screen">Home</button>
+      </div>
     </div>
   </div>
 

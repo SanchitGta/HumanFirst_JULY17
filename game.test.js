@@ -48,7 +48,18 @@ function makeCanvas() {
     fillStyle: null,
     fillRect() {},
     clearRect() {},
-    setTransform() {}
+    setTransform() {},
+    save() {},
+    restore() {},
+    beginPath() {},
+    arc() {},
+    fill() {},
+    stroke() {},
+    translate() {},
+    rotate() {},
+    createRadialGradient() {
+      return { addColorStop() {} };
+    }
   };
   return makeElement({
     width: 0,
@@ -306,4 +317,34 @@ test('survivalTime accumulates elapsed frame time, driving the difficulty ramp',
   hooks.tick(250);
 
   assert.equal(hooks.getSurvivalTime(), 350);
+});
+
+test('resetGame() clears particles for a fresh run', () => {
+  const { sandbox } = loadGame();
+  const hooks = sandbox.__neonDashTestHooks;
+  hooks.resetGame();
+
+  hooks.getCrystals().push(Object.assign(overlappingRect(16, 16), { speed: 5 }));
+  hooks.tick(0); // collection spawns particles
+
+  assert.ok(hooks.getParticles().length > 0, 'collecting a crystal spawns particles');
+
+  hooks.resetGame();
+
+  assert.equal(hooks.getParticles().length, 0, 'reset clears particles');
+});
+
+test('particle count never exceeds PARTICLE_MAX_COUNT', () => {
+  const { sandbox } = loadGame();
+  const hooks = sandbox.__neonDashTestHooks;
+  hooks.resetGame();
+
+  // Each crystal collection spawns 8 particles; 15 collections would push well
+  // past the 80-particle cap without the drop-oldest-first guard.
+  for (let i = 0; i < 15; i++) {
+    hooks.getCrystals().push(Object.assign(overlappingRect(16, 16), { speed: 5 }));
+    hooks.tick(0);
+  }
+
+  assert.ok(hooks.getParticles().length <= 80, 'particle count stays at or below the hard cap');
 });
