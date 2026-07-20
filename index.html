@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Neon Dash</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { overflow: hidden; background: #000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    #game-container { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+    #gameCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; }
+    .screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none;
+              flex-direction: column; align-items: center; justify-content: center; }
+    .screen--visible { display: flex; }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <canvas id="gameCanvas" role="img" aria-label="Neon Dash game area"></canvas>
+
+    <div id="screen-home" class="screen" aria-label="Home screen">
+      <h1>Neon Dash</h1>
+      <p id="home-highscore">Best: 0</p>
+      <button id="btn-play" aria-label="Start game">Play</button>
+    </div>
+
+    <div id="screen-hud" class="screen" aria-label="Game HUD" aria-live="polite">
+      <span id="hud-score">0</span>
+      <span id="hud-combo">x1</span>
+      <span id="hud-shield" aria-label="Shield active" hidden>Shield</span>
+      <button id="btn-pause" aria-label="Pause game">Pause</button>
+    </div>
+
+    <div id="screen-pause" class="screen" aria-label="Paused">
+      <h2>Paused</h2>
+      <button id="btn-resume" aria-label="Resume game">Resume</button>
+      <button id="btn-pause-home" aria-label="Return to home screen">Home</button>
+    </div>
+
+    <div id="screen-gameover" class="screen" aria-label="Game over">
+      <h2>Game Over</h2>
+      <p id="go-score">Score: 0</p>
+      <p id="go-best">Best: 0</p>
+      <button id="btn-restart" aria-label="Restart game">Restart</button>
+      <button id="btn-go-home" aria-label="Return to home screen">Home</button>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
