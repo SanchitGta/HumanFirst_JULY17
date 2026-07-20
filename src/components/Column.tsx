@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useDroppable } from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import type { Task, TaskStatus } from '../types'
 import { TaskCard } from './TaskCard'
 
@@ -13,6 +15,8 @@ interface ColumnProps {
 
 export function Column({ columnId, title, tasks, onAddTask, onUpdateTask, onDeleteTask }: ColumnProps) {
   const [inputValue, setInputValue] = useState('')
+  const { setNodeRef } = useDroppable({ id: columnId })
+  const taskIds = tasks.map((t) => t.id)
 
   function handleAdd() {
     const trimmed = inputValue.trim()
@@ -29,10 +33,12 @@ export function Column({ columnId, title, tasks, onAddTask, onUpdateTask, onDele
           {tasks.length}
         </span>
       </h2>
-      <div className="flex flex-col gap-2 min-h-[80px]">
-        {tasks.map((task) => (
-          <TaskCard key={task.id} task={task} onUpdate={onUpdateTask} onDelete={onDeleteTask} />
-        ))}
+      <div ref={setNodeRef} className="flex flex-col gap-2 min-h-[80px]">
+        <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
+          {tasks.map((task) => (
+            <TaskCard key={task.id} task={task} onUpdate={onUpdateTask} onDelete={onDeleteTask} />
+          ))}
+        </SortableContext>
       </div>
       <div className="flex gap-1 mt-2">
         <input
