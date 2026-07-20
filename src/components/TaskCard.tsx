@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
+import { useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import type { Task } from '../types'
 
 interface TaskCardProps {
@@ -12,6 +14,16 @@ export function TaskCard({ task, onUpdate, onDelete }: TaskCardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const cancelledRef = useRef(false)
+
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: task.id,
+  })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  }
 
   function startEditing() {
     setDraft(task.title)
@@ -45,7 +57,13 @@ export function TaskCard({ task, onUpdate, onDelete }: TaskCardProps) {
   }
 
   return (
-    <div className="group relative bg-white rounded-lg shadow-sm border border-gray-200 p-3 cursor-default select-none">
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className="group relative bg-white rounded-lg shadow-sm border border-gray-200 p-3 cursor-grab active:cursor-grabbing select-none"
+    >
       {isEditing ? (
         <input
           type="text"

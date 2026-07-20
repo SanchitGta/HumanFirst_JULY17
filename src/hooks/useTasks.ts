@@ -1,18 +1,16 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { arrayMove } from '@dnd-kit/sortable'
 import type { Task, TaskStatus } from '../types'
 
-const INITIAL_TASKS: Task[] = [
-  { id: '1', title: 'Set up project structure', columnId: 'done', order: 0 },
-  { id: '2', title: 'Configure Tailwind CSS', columnId: 'done', order: 1 },
-  { id: '3', title: 'Build KanbanBoard component', columnId: 'in-progress', order: 0 },
-  { id: '4', title: 'Implement drag-and-drop', columnId: 'in-progress', order: 1 },
-  { id: '5', title: 'Add task creation form', columnId: 'todo', order: 0 },
-  { id: '6', title: 'Add LocalStorage persistence', columnId: 'todo', order: 1 },
-  { id: '7', title: 'Write documentation', columnId: 'todo', order: 2 },
-]
-
 export function useTasks() {
-  const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS)
+  const [tasks, setTasks] = useState<Task[]>(() => {
+    const saved = localStorage.getItem('kanban-tasks')
+    return saved ? (JSON.parse(saved) as Task[]) : []
+  })
+
+  useEffect(() => {
+    localStorage.setItem('kanban-tasks', JSON.stringify(tasks))
+  }, [tasks])
 
   function addTask(columnId: TaskStatus, title: string) {
     const trimmed = title.trim()
@@ -36,5 +34,47 @@ export function useTasks() {
     setTasks((prev) => prev.filter((t) => t.id !== id))
   }
 
-  return { tasks, addTask, updateTask, deleteTask }
+  function moveTask(activeId: string, targetColumnId: TaskStatus, overTaskId: string | null) {
+    setTasks((prev) => {
+      const active = prev.find((t) => t.id === activeId)
+      if (!active) return prev
+
+      if (active.columnId === targetColumnId) {
+        const columnTasks = prev
+          .filter((t) => t.columnId === active.columnId)
+          .sort((a, b) => a.order - b.order)
+        const activeIndex = columnTasks.findIndex((t) => t.id === activeId)
+        const overIndex = overTaskId
+          ? columnTasks.findIndex((t) => t.id === overTaskId)
+          : columnTasks.length - 1
+        if (overIndex === -1 || activeIndex === overIndex) return prev
+        const reordered = arrayMove(columnTasks, activeIndex, overIndex).map((t, i) => ({
+          ...t,
+          order: i,
+        }))
+        return prev.map((t) => reordered.find((r) => r.id === t.id) ?? t)
+      } else {
+        const targetTasks = prev
+          .filter((t) => t.columnId === targetColumnId)
+          .sort((a, b) => a.order - b.order)
+        const insertAt = overTaskId
+          ? Math.max(0, targetTasks.findIndex((t) => t.id === overTaskId))
+          : targetTasks.length
+        const newTargetTasks = [
+          ...targetTasks.slice(0, insertAt),
+          { ...active, columnId: targetColumnId },
+          ...targetTasks.slice(insertAt),
+        ].map((t, i) => ({ ...t, order: i }))
+        const newSourceTasks = prev
+          .filter((t) => t.columnId === active.columnId && t.id !== activeId)
+          .sort((a, b) => a.order - b.order)
+          .map((t, i) => ({ ...t, order: i }))
+        const updatedIds = new Set([...newTargetTasks, ...newSourceTasks].map((t) => t.id))
+        const unchanged = prev.filter((t) => !updatedIds.has(t.id))
+        return [...unchanged, ...newTargetTasks, ...newSourceTasks]
+      }
+    })
+  }
+
+  return { tasks, addTask, updateTask, deleteTask, moveTask }
 }
