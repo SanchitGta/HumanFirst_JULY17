@@ -45,6 +45,34 @@
   const PARTICLE_SPEED_MAX     = 2.5;  // px/frame at 60fps
   const PARTICLE_SIZE          = 3;    // px — particle square side
 
+  const AUDIO_MASTER_GAIN      = 0.35; // overall output ceiling feeding the compressor
+
+  const AMBIENT_GAIN_TARGET    = 0.05; // pad envelope target gain
+  const AMBIENT_FADE_IN_MS     = 1500; // ms — pad fade-in duration
+  const AMBIENT_FADE_OUT_MS    = 400;  // ms — pad fade-out duration
+  const AMBIENT_ROOT_HZ        = 110;  // A2
+  const AMBIENT_FIFTH_HZ       = 165;  // E3
+  const AMBIENT_DETUNE_CENTS   = 4;    // detune spread between root/fifth oscillators
+  const AMBIENT_FILTER_HZ      = 800;  // lowpass cutoff center
+  const AMBIENT_LFO_HZ         = 0.07; // slow filter-cutoff LFO rate
+  const AMBIENT_LFO_DEPTH_HZ   = 300;  // LFO modulation depth on filter cutoff
+
+  const CLICK_FREQ_HZ          = 660;  // button click tone
+  const CLICK_DURATION_MS      = 60;
+  const CLICK_GAIN             = 0.18;
+
+  const CHIME_NOTE1_HZ         = 880;    // A5
+  const CHIME_NOTE2_HZ         = 1318.5; // E6
+  const CHIME_NOTE_MS          = 90;
+  const CHIME_GAIN             = 0.22;
+
+  const COLLISION_SWEEP_START_HZ = 220;
+  const COLLISION_SWEEP_END_HZ   = 70;
+  const COLLISION_DURATION_MS    = 180;
+  const COLLISION_GAIN           = 0.28;
+
+  const NOISE_BUFFER_SEC       = 0.2;  // length of the one reusable noise buffer
+
   let canvas, ctx;
   let currentState  = null;
   let rafId         = null;
@@ -67,6 +95,12 @@
   let input         = { left: false, right: false };
   let touch         = { startX: 0, startY: 0, swipeLeft: false, swipeRight: false };
   let particles     = [];   // active visual burst particles: {x, y, vx, vy, life, maxLife, color}
+
+  let audioCtx         = null;
+  let audioUnavailable = false; // memoizes a failed feature-detection
+  let masterGain        = null;
+  let noiseBuffer       = null; // reusable noise buffer for playCollision()
+  let ambientNodes      = null; // non-null while the ambient pad is playing
 
   // ─── Persistence ────────────────────────────────────────────────────────────
 
@@ -125,6 +159,7 @@
     // Exit PLAYING: always stop the loop
     if (currentState === STATES.PLAYING) {
       stopLoop();
+      stopAmbientMusic();
       if (nextState === STATES.GAME_OVER) {
         persistHighScore();
         document.getElementById('go-score').textContent  = 'Score: ' + score;
@@ -137,6 +172,7 @@
 
     if (nextState === STATES.PLAYING) {
       startLoop();
+      startAmbientMusic();
     } else {
       render(); // one static frame for HOME / PAUSED / GAME_OVER
     }
@@ -248,6 +284,7 @@
           updateHudCombo();
           spawnParticles(obstacles[i].x + obstacles[i].w / 2, obstacles[i].y + obstacles[i].h / 2,
             COLOR_SHIELD, 14, PARTICLE_LIFE_MS);
+          playCollision();
           obstacles.splice(i, 1); // consume the obstacle that hit the shield
         } else {
           hitObstacle = true;
@@ -257,6 +294,7 @@
     if (hitObstacle) {
       combo = 1; comboDecay = 0;
       spawnParticles(player.x, player.y, COLOR_OBSTACLE, 24, PARTICLE_DEATH_LIFE_MS);
+      playCollision();
       transitionTo(STATES.GAME_OVER);
       return;
     }
@@ -270,6 +308,7 @@
         updateHudScore();
         updateHudCombo();
         spawnParticles(c.x + c.w / 2, c.y + c.h / 2, COLOR_CRYSTAL, 8, PARTICLE_LIFE_MS);
+        playChime();
         return false; // collected — remove from array
       }
       if (c.y > player.y + player.height / 2) {
@@ -464,6 +503,185 @@
     return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
   }
 
+  // ─── Audio ──────────────────────────────────────────────────────────────────
+  // All sound is synthesized at runtime via the Web Audio API — no audio files,
+  // no CDN, no network calls, per the offline/self-contained constraint. Context
+  // creation is gesture-gated (see ensureAudioContext) to satisfy Safari/iOS
+  // autoplay policy, and is a safe no-op in environments without AudioContext.
+
+  function createNoiseBuffer(ctx, seconds) {
+    var buffer = ctx.createBuffer(1, Math.max(1, Math.round(ctx.sampleRate * seconds)), ctx.sampleRate);
+    var data = buffer.getChannelData(0);
+    for (var i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    return buffer;
+  }
+
+  function ensureAudioContext() {
+    if (audioUnavailable) return null;
+
+    if (!audioCtx) {
+      var AudioCtxCtor = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtxCtor) {
+        audioUnavailable = true;
+        return null;
+      }
+      audioCtx = new AudioCtxCtor();
+      masterGain = audioCtx.createGain();
+      masterGain.gain.value = AUDIO_MASTER_GAIN;
+      var compressor = audioCtx.createDynamicsCompressor();
+      masterGain.connect(compressor);
+      compressor.connect(audioCtx.destination);
+      noiseBuffer = createNoiseBuffer(audioCtx, NOISE_BUFFER_SEC);
+    }
+
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(function () {});
+    }
+
+    return audioCtx;
+  }
+
+  function playClick() {
+    var ctx = ensureAudioContext();
+    if (!ctx) return;
+
+    var t0 = ctx.currentTime;
+    var osc = ctx.createOscillator();
+    osc.type = 'square';
+    osc.frequency.value = CLICK_FREQ_HZ;
+    var gain = ctx.createGain();
+    gain.gain.setValueAtTime(CLICK_GAIN, t0);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + CLICK_DURATION_MS / 1000);
+
+    osc.connect(gain);
+    gain.connect(masterGain);
+    osc.start(t0);
+    osc.stop(t0 + CLICK_DURATION_MS / 1000);
+  }
+
+  function playChimeNote(ctx, freq, startTime, durationMs) {
+    var osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    var gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, startTime);
+    gain.gain.linearRampToValueAtTime(CHIME_GAIN, startTime + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + durationMs / 1000);
+
+    osc.connect(gain);
+    gain.connect(masterGain);
+    osc.start(startTime);
+    osc.stop(startTime + durationMs / 1000 + 0.02);
+  }
+
+  function playChime() {
+    var ctx = ensureAudioContext();
+    if (!ctx) return;
+
+    var t0 = ctx.currentTime;
+    playChimeNote(ctx, CHIME_NOTE1_HZ, t0, CHIME_NOTE_MS);
+    playChimeNote(ctx, CHIME_NOTE2_HZ, t0 + (CHIME_NOTE_MS / 1000) * 0.6, CHIME_NOTE_MS);
+  }
+
+  function playCollision() {
+    var ctx = ensureAudioContext();
+    if (!ctx) return;
+
+    var t0  = ctx.currentTime;
+    var dur = COLLISION_DURATION_MS / 1000;
+
+    // Pitch-sweep layer
+    var sweepOsc = ctx.createOscillator();
+    sweepOsc.type = 'sawtooth';
+    sweepOsc.frequency.setValueAtTime(COLLISION_SWEEP_START_HZ, t0);
+    sweepOsc.frequency.exponentialRampToValueAtTime(COLLISION_SWEEP_END_HZ, t0 + dur);
+    var sweepGain = ctx.createGain();
+    sweepGain.gain.setValueAtTime(COLLISION_GAIN, t0);
+    sweepGain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    sweepOsc.connect(sweepGain);
+    sweepGain.connect(masterGain);
+    sweepOsc.start(t0);
+    sweepOsc.stop(t0 + dur + 0.02);
+
+    // Filtered noise impact layer
+    var noiseSrc = ctx.createBufferSource();
+    noiseSrc.buffer = noiseBuffer;
+    var bandpass = ctx.createBiquadFilter();
+    bandpass.type = 'bandpass';
+    bandpass.frequency.value = 220;
+    bandpass.Q.value = 0.8;
+    var noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(COLLISION_GAIN * 0.8, t0);
+    noiseGain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur * 0.6);
+    noiseSrc.connect(bandpass);
+    bandpass.connect(noiseGain);
+    noiseGain.connect(masterGain);
+    noiseSrc.start(t0);
+    noiseSrc.stop(t0 + dur);
+  }
+
+  function startAmbientMusic() {
+    var ctx = ensureAudioContext();
+    if (!ctx || ambientNodes) return; // unavailable, or already playing (idempotent)
+
+    var t0 = ctx.currentTime;
+
+    var filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = AMBIENT_FILTER_HZ;
+    filter.Q.value = 0.7;
+
+    var lfo = ctx.createOscillator();
+    lfo.frequency.value = AMBIENT_LFO_HZ;
+    var lfoGain = ctx.createGain();
+    lfoGain.gain.value = AMBIENT_LFO_DEPTH_HZ;
+    lfo.connect(lfoGain);
+    lfoGain.connect(filter.frequency);
+    lfo.start(t0);
+
+    var ambientGain = ctx.createGain();
+    ambientGain.gain.setValueAtTime(0, t0);
+    ambientGain.gain.linearRampToValueAtTime(AMBIENT_GAIN_TARGET, t0 + AMBIENT_FADE_IN_MS / 1000);
+
+    var oscRoot = ctx.createOscillator();
+    oscRoot.type = 'triangle';
+    oscRoot.frequency.value = AMBIENT_ROOT_HZ;
+    oscRoot.detune.value = -AMBIENT_DETUNE_CENTS;
+
+    var oscFifth = ctx.createOscillator();
+    oscFifth.type = 'triangle';
+    oscFifth.frequency.value = AMBIENT_FIFTH_HZ;
+    oscFifth.detune.value = AMBIENT_DETUNE_CENTS;
+
+    oscRoot.connect(filter);
+    oscFifth.connect(filter);
+    filter.connect(ambientGain);
+    ambientGain.connect(masterGain);
+
+    oscRoot.start(t0);
+    oscFifth.start(t0);
+
+    ambientNodes = { oscRoot: oscRoot, oscFifth: oscFifth, lfo: lfo, ambientGain: ambientGain };
+  }
+
+  function stopAmbientMusic() {
+    if (!ambientNodes || !audioCtx) return;
+
+    var t0      = audioCtx.currentTime;
+    var fadeSec = AMBIENT_FADE_OUT_MS / 1000;
+    var gainParam = ambientNodes.ambientGain.gain;
+
+    gainParam.cancelScheduledValues(t0);
+    gainParam.setValueAtTime(gainParam.value, t0);
+    gainParam.linearRampToValueAtTime(0.0001, t0 + fadeSec);
+
+    ambientNodes.oscRoot.stop(t0 + fadeSec + 0.05);
+    ambientNodes.oscFifth.stop(t0 + fadeSec + 0.05);
+    ambientNodes.lfo.stop(t0 + fadeSec + 0.05);
+
+    ambientNodes = null;
+  }
+
   // ─── HUD ─────────────────────────────────────────────────────────────────────
 
   function updateHudScore() {
@@ -557,21 +775,27 @@
 
     // Button wiring
     document.getElementById('btn-play').addEventListener('click', function () {
+      playClick();
       resetGame();
     });
     document.getElementById('btn-pause').addEventListener('click', function () {
+      playClick();
       transitionTo(STATES.PAUSED);
     });
     document.getElementById('btn-resume').addEventListener('click', function () {
+      playClick();
       transitionTo(STATES.PLAYING);
     });
     document.getElementById('btn-pause-home').addEventListener('click', function () {
+      playClick();
       transitionTo(STATES.HOME);
     });
     document.getElementById('btn-restart').addEventListener('click', function () {
+      playClick();
       resetGame();
     });
     document.getElementById('btn-go-home').addEventListener('click', function () {
+      playClick();
       transitionTo(STATES.HOME);
     });
 
