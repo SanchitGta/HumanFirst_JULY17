@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rock Paper Scissors</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app" id="app">
+  <header class="top-bar">
+    <div class="top-bar-brand">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/>
+        <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/>
+        <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/>
+        <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>
+      </svg>
+      <span class="top-bar-title">Rock Paper Scissors</span>
+    </div>
+  </header>
+
+  <main class="main">
+    <!-- Game screen -->
+    <div class="game-col">
+      <div id="screen-game">
+        <!-- Score board -->
+        <div class="scoreboard">
+          <div class="score-card player" id="score-player">
+            <div class="score-label">Player Wins</div>
+            <div class="score-value">0</div>
+          </div>
+          <div class="score-card ties" id="score-ties">
+            <div class="score-label">Ties</div>
+            <div class="score-value">0</div>
+          </div>
+          <div class="score-card cpu" id="score-cpu">
+            <div class="score-label">Computer Wins</div>
+            <div class="score-value">0</div>
+          </div>
+        </div>
+
+        <!-- Round display -->
+        <div class="round-display" id="round-display">
+          <div class="choice-slot">
+            <div class="choice-icon player-icon empty" id="player-icon">?</div>
+            <div class="choice-label">Your pick</div>
+          </div>
+          <div class="vs-divider">VS</div>
+          <div class="choice-slot">
+            <div class="choice-icon cpu-icon empty" id="cpu-icon">?</div>
+            <div class="choice-label">Computer</div>
+          </div>
+          <div class="result-banner" id="result-banner"></div>
+        </div>
+
+        <!-- Choice buttons -->
+        <div class="choice-buttons" id="choice-buttons">
+          <button class="choice-btn rock" id="btn-rock">
+            <span class="choice-btn-emoji">✊</span>
+            <span class="choice-btn-label">Rock</span>
+          </button>
+          <button class="choice-btn paper" id="btn-paper">
+            <span class="choice-btn-emoji">✋</span>
+            <span class="choice-btn-label">Paper</span>
+          </button>
+          <button class="choice-btn scissors" id="btn-scissors">
+            <span class="choice-btn-emoji">✌️</span>
+            <span class="choice-btn-label">Scissors</span>
+          </button>
+        </div>
+
+        <!-- Actions -->
+        <div class="actions">
+          <span class="round-counter" id="round-counter">Round 1</span>
+          <button class="btn btn-ghost" id="reset-btn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            Reset
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- History column -->
+    <div class="history-col">
+      <div class="panel-title">
+        Round History
+        <span id="history-count">0 rounds</span>
+      </div>
+      <div class="history-list" id="history-list">
+        <div class="history-empty">
+          <div style="font-size:28px;margin-bottom:8px">🎮</div>
+          Choose rock, paper, or scissors to start!
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Toast -->
+<div class="toast-container" id="toasts"></div>
+
+<script src="app.js" defer></script>
+</body>
+</html>
