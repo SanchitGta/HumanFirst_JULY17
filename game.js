@@ -13,6 +13,23 @@
   const DT_CAP          = 50;   // ms — spiral-of-death guard for tab-blur spikes
   const LS_KEY          = 'neonDash_highScore';
 
+  const BASE_CRYSTAL_SCORE  = 10;     // score per crystal at combo x1
+  const COMBO_CAP           = 10;     // maximum multiplier ceiling
+  const COMBO_DECAY_MS      = 3000;   // ms idle before combo resets to x1
+  const BASE_OBSTACLE_SPEED = 3;      // px/frame at 60fps, difficulty level 0
+  const MAX_OBSTACLE_SPEED  = 10;     // px/frame at 60fps, difficulty level 1
+  const BASE_SPAWN_INTERVAL = 1500;   // ms between obstacle spawns at difficulty level 0
+  const MIN_SPAWN_INTERVAL  = 700;    // ms between obstacle spawns at difficulty level 1
+  const DIFFICULTY_RAMP_MS  = 60000;  // ms to ramp from difficulty 0 → 1
+  const CRYSTAL_INTERVAL    = 2000;   // ms between crystal spawns (fixed, not difficulty-scaled)
+  const SHIELD_INTERVAL     = 15000;  // ms between shield spawn attempts
+  const OBSTACLE_MIN_W      = 40;     // px — narrowest obstacle
+  const OBSTACLE_MAX_W      = 90;     // px — widest obstacle
+  const OBSTACLE_H          = 24;     // px — fixed obstacle height
+  const CRYSTAL_SIZE        = 16;     // px — crystal square side
+  const SHIELD_SIZE         = 20;     // px — shield pickup square side
+  const HITBOX_SHRINK       = 4;      // px — inset per side on player collision box for fairness
+
   let canvas, ctx;
   let currentState  = null;
   let rafId         = null;
@@ -22,8 +39,16 @@
   let player        = { x: 0, y: 0, width: 40, height: 40 };
   let score         = 0;
   let highScore     = 0;
-  let obstacles     = [];   // stub — populated by #261
-  let crystals      = [];   // stub — populated by #261
+  let obstacles     = [];   // falling obstacles currently on canvas
+  let crystals      = [];   // falling energy crystals currently on canvas
+  let shields       = [];   // shield pickups currently falling on canvas (not yet collected)
+  let hasShield     = false; // true when the player is holding a collected shield
+  let combo         = 1;    // current combo multiplier; shown as "x1", "x2", …
+  let comboDecay    = 0;    // ms since last crystal collection; resets combo after COMBO_DECAY_MS
+  let survivalTime  = 0;    // ms elapsed in the current run; drives difficulty
+  let spawnTimer    = 0;    // ms since last obstacle was spawned
+  let crystalTimer  = 0;    // ms since last crystal was spawned
+  let shieldTimer   = 0;    // ms since last shield pickup was spawned
   let input         = { left: false, right: false };
   let touch         = { startX: 0, startY: 0, swipeLeft: false, swipeRight: false };
 
@@ -138,7 +163,110 @@
     if (touch.swipeLeft)  { input.left  = false; touch.swipeLeft  = false; }
     if (touch.swipeRight) { input.right = false; touch.swipeRight = false; }
 
-    // TODO #261: obstacle/crystal spawn, movement, collision detection, score increment, difficulty scaling
+    // ── survival time and difficulty ────────────────────────────────────────
+    survivalTime += dt;
+
+    var diff = Math.min(survivalTime / DIFFICULTY_RAMP_MS, 1);
+    var currentObstacleSpeed = BASE_OBSTACLE_SPEED + (MAX_OBSTACLE_SPEED - BASE_OBSTACLE_SPEED) * diff;
+    var currentSpawnInterval = BASE_SPAWN_INTERVAL - (BASE_SPAWN_INTERVAL - MIN_SPAWN_INTERVAL) * diff;
+
+    // ── combo decay ──────────────────────────────────────────────────────────
+    if (combo > 1) {
+      comboDecay += dt;
+      if (comboDecay >= COMBO_DECAY_MS) {
+        combo = 1; comboDecay = 0;
+        updateHudCombo();
+      }
+    }
+
+    // ── spawn timers ─────────────────────────────────────────────────────────
+    spawnTimer += dt;
+    if (spawnTimer >= currentSpawnInterval) {
+      spawnTimer -= currentSpawnInterval;
+      spawnObstacle(currentObstacleSpeed);
+    }
+    crystalTimer += dt;
+    if (crystalTimer >= CRYSTAL_INTERVAL) {
+      crystalTimer -= CRYSTAL_INTERVAL;
+      spawnCrystal(currentObstacleSpeed * 0.7);
+    }
+    shieldTimer += dt;
+    if (shieldTimer >= SHIELD_INTERVAL && !hasShield) {
+      shieldTimer -= SHIELD_INTERVAL;
+      spawnShield(currentObstacleSpeed * 0.5);
+    }
+
+    // ── move and cull obstacles ──────────────────────────────────────────────
+    var i;
+    for (i = obstacles.length - 1; i >= 0; i--) {
+      obstacles[i].y += obstacles[i].speed * (dt / 16.67);
+    }
+    obstacles = obstacles.filter(function (o) { return o.y < canvasHeight + o.h; });
+
+    // ── move crystals and shields ────────────────────────────────────────────
+    for (i = crystals.length - 1; i >= 0; i--) {
+      crystals[i].y += crystals[i].speed * (dt / 16.67);
+    }
+    for (i = shields.length - 1; i >= 0; i--) {
+      shields[i].y += shields[i].speed * (dt / 16.67);
+    }
+
+    // ── player bounds, computed once for all collision passes ───────────────
+    var pb = {
+      x: player.x - player.width  / 2 + HITBOX_SHRINK,
+      y: player.y - player.height / 2 + HITBOX_SHRINK,
+      w: player.width  - HITBOX_SHRINK * 2,
+      h: player.height - HITBOX_SHRINK * 2
+    };
+
+    // ── obstacle collision ────────────────────────────────────────────────────
+    var hitObstacle = false;
+    for (i = 0; i < obstacles.length && !hitObstacle; i++) {
+      if (overlaps(pb, obstacles[i])) {
+        if (hasShield) {
+          hasShield = false;
+          document.getElementById('hud-shield').hidden = true;
+          combo = 1; comboDecay = 0;
+          updateHudCombo();
+          obstacles.splice(i, 1); // consume the obstacle that hit the shield
+        } else {
+          hitObstacle = true;
+        }
+      }
+    }
+    if (hitObstacle) {
+      combo = 1; comboDecay = 0;
+      transitionTo(STATES.GAME_OVER);
+      return;
+    }
+
+    // ── crystal collection and miss detection ─────────────────────────────────
+    crystals = crystals.filter(function (c) {
+      if (overlaps(pb, c)) {
+        combo = Math.min(combo + 1, COMBO_CAP);
+        comboDecay = 0;
+        score += BASE_CRYSTAL_SCORE * combo;
+        updateHudScore();
+        updateHudCombo();
+        return false; // collected — remove from array
+      }
+      if (c.y > player.y + player.height / 2) {
+        if (combo > 1) { combo = 1; comboDecay = 0; updateHudCombo(); }
+        return false; // missed — remove from array
+      }
+      return true; // still falling, keep
+    });
+
+    // ── shield collection and cull ────────────────────────────────────────────
+    shields = shields.filter(function (s) {
+      if (overlaps(pb, s)) {
+        hasShield = true;
+        document.getElementById('hud-shield').hidden = false;
+        return false;
+      }
+      if (s.y > canvasHeight + s.h) return false; // offscreen, cull
+      return true;
+    });
   }
 
   // ─── Render ─────────────────────────────────────────────────────────────────
@@ -158,7 +286,24 @@
       );
     }
 
-    // TODO #261: render obstacles, crystals, shields
+    // Draw obstacles (red/orange — placeholder; #262 will theme)
+    ctx.fillStyle = '#ff4136';
+    for (var i = 0; i < obstacles.length; i++) {
+      ctx.fillRect(obstacles[i].x, obstacles[i].y, obstacles[i].w, obstacles[i].h);
+    }
+
+    // Draw crystals (green — placeholder; #262 will theme)
+    ctx.fillStyle = '#2ecc40';
+    for (var j = 0; j < crystals.length; j++) {
+      ctx.fillRect(crystals[j].x, crystals[j].y, crystals[j].w, crystals[j].h);
+    }
+
+    // Draw shields on canvas (yellow — placeholder; #262 will theme)
+    ctx.fillStyle = '#ffdc00';
+    for (var k = 0; k < shields.length; k++) {
+      ctx.fillRect(shields[k].x, shields[k].y, shields[k].w, shields[k].h);
+    }
+
     // TODO #262: replace all fillRect calls with styled/glow versions
   }
 
@@ -175,8 +320,51 @@
     document.getElementById('hud-score').textContent = '0';
     document.getElementById('hud-combo').textContent = 'x1';
     document.getElementById('hud-shield').hidden     = true;
+    shields      = [];
+    hasShield    = false;
+    combo        = 1;
+    comboDecay   = 0;
+    survivalTime = 0;
+    spawnTimer   = 0;
+    crystalTimer = 0;
+    shieldTimer  = 0;
     transitionTo(STATES.PLAYING);
-    // TODO #261: reset difficulty, speed, spawn timers
+  }
+
+  // ─── Spawning ────────────────────────────────────────────────────────────────
+
+  function spawnObstacle(speed) {
+    var w = OBSTACLE_MIN_W + Math.random() * (OBSTACLE_MAX_W - OBSTACLE_MIN_W);
+    w = Math.min(w, canvasWidth - 2);
+    var x = Math.max(0, Math.random() * (canvasWidth - w));
+    obstacles.push({ x: x, y: -OBSTACLE_H, w: w, h: OBSTACLE_H, speed: speed });
+  }
+
+  function spawnCrystal(speed) {
+    var x = Math.max(0, Math.random() * (canvasWidth - CRYSTAL_SIZE));
+    crystals.push({ x: x, y: -CRYSTAL_SIZE, w: CRYSTAL_SIZE, h: CRYSTAL_SIZE, speed: speed });
+  }
+
+  function spawnShield(speed) {
+    var x = Math.max(0, Math.random() * (canvasWidth - SHIELD_SIZE));
+    shields.push({ x: x, y: -SHIELD_SIZE, w: SHIELD_SIZE, h: SHIELD_SIZE, speed: speed });
+  }
+
+  // ─── Collision ───────────────────────────────────────────────────────────────
+
+  function overlaps(a, b) {
+    return a.x < b.x + b.w && a.x + a.w > b.x &&
+           a.y < b.y + b.h && a.y + a.h > b.y;
+  }
+
+  // ─── HUD ─────────────────────────────────────────────────────────────────────
+
+  function updateHudScore() {
+    document.getElementById('hud-score').textContent = score;
+  }
+
+  function updateHudCombo() {
+    document.getElementById('hud-combo').textContent = 'x' + combo;
   }
 
   // ─── Input: keyboard ────────────────────────────────────────────────────────
@@ -290,6 +478,22 @@
   window.NeonDash = {
     getState: function () { return currentState; },
     getScore: function () { return score; }
+  };
+
+  // Unit-test hook only — separate from window.NeonDash so that export stays
+  // exactly as story #260 contracted it. Exposes the pieces #261 added so
+  // collision/scoring/combo logic can be driven and inspected without a DOM.
+  window.__neonDashTestHooks = {
+    overlaps: overlaps,
+    resetGame: resetGame,
+    tick: function (dt) { update(dt); render(); },
+    getPlayer: function () { return player; },
+    getCombo: function () { return combo; },
+    getHasShield: function () { return hasShield; },
+    getSurvivalTime: function () { return survivalTime; },
+    getObstacles: function () { return obstacles; },
+    getCrystals: function () { return crystals; },
+    getShields: function () { return shields; }
   };
 
 })();
