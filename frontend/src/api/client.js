@@ -53,4 +53,15 @@ export const tasksApi = {
   updateTask: (id, payload) =>
     request(`/api/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
   deleteTask: (id) => request(`/api/tasks/${id}`, { method: 'DELETE' }),
+  assignTag: (taskId, tagId) => request(`/api/tasks/${taskId}/tags/${tagId}`, { method: 'POST' }),
+  unassignTag: (taskId, tagId) =>
+    request(`/api/tasks/${taskId}/tags/${tagId}`, { method: 'DELETE' }),
+}
+
+export const tagsApi = {
+  getTags: () => request('/api/tags'),
+  createTag: (name) => request('/api/tags', { method: 'POST', body: JSON.stringify({ name }) }),
+  updateTag: (id, name) =>
+    request(`/api/tags/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
+  deleteTag: (id) => request(`/api/tags/${id}`, { method: 'DELETE' }),
 }

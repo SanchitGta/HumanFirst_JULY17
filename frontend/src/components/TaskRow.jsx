@@ -1,4 +1,5 @@
 import PriorityBadge from './PriorityBadge.jsx'
+import TagPill from './TagPill.jsx'
 import { formatDueDate } from '../utils/date.js'
 
 export default function TaskRow({ task, overdue, dueToday, onToggleComplete, onOpenEdit, onRequestDelete }) {
@@ -50,6 +51,9 @@ export default function TaskRow({ task, overdue, dueToday, onToggleComplete, onO
         {task.description && <div className="row-desc">{task.description}</div>}
         <div className="row-meta">
           {task.due_date && <span className={dueChipClass}>{dueLabel}</span>}
+          {task.tags.map((tag) => (
+            <TagPill key={tag.id} name={tag.name} />
+          ))}
         </div>
       </div>
       <span className="row-priority">

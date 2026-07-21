@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import SidebarListItem from './SidebarListItem.jsx'
+import TagSidebarItem from './TagSidebarItem.jsx'
 
 export default function Sidebar({
   lists,
@@ -9,10 +10,18 @@ export default function Sidebar({
   onCreateList,
   onRenameList,
   onRequestDeleteList,
+  tags,
+  onCreateTag,
+  onRenameTag,
+  onRequestDeleteTag,
 }) {
   const [addingList, setAddingList] = useState(false)
   const [newListName, setNewListName] = useState('')
   const [error, setError] = useState(null)
+
+  const [addingTag, setAddingTag] = useState(false)
+  const [newTagName, setNewTagName] = useState('')
+  const [tagError, setTagError] = useState(null)
 
   async function handleAddList(e) {
     e.preventDefault()
@@ -23,6 +32,18 @@ export default function Sidebar({
       setError(null)
     } catch (err) {
       setError(err.message || 'Request failed')
+    }
+  }
+
+  async function handleAddTag(e) {
+    e.preventDefault()
+    try {
+      await onCreateTag(newTagName)
+      setNewTagName('')
+      setAddingTag(false)
+      setTagError(null)
+    } catch (err) {
+      setTagError(err.message || 'Request failed')
     }
   }
 
@@ -63,6 +84,41 @@ export default function Sidebar({
               onChange={(e) => setNewListName(e.target.value)}
             />
             {error && <span className="field-error">{error}</span>}
+          </form>
+        )}
+      </div>
+
+      <div className="sidebar-section">
+        <div className="sidebar-section-head">
+          <span className="sidebar-section-title">Tags</span>
+          <button className="icon-btn-sm" aria-label="Add tag" onClick={() => setAddingTag(true)}>
+            +
+          </button>
+        </div>
+        <ul>
+          {tags.map((tag) => (
+            <TagSidebarItem
+              key={tag.id}
+              tag={tag}
+              onRename={onRenameTag}
+              onRequestDelete={onRequestDeleteTag}
+            />
+          ))}
+        </ul>
+        {tags.length === 0 && !addingTag && <span className="sidebar-empty-hint">No tags yet.</span>}
+        {addingTag && (
+          <form className="inline-add-row" onSubmit={handleAddTag}>
+            <input
+              type="text"
+              className="input"
+              placeholder="Tag name"
+              maxLength={40}
+              aria-label="New tag name"
+              autoFocus
+              value={newTagName}
+              onChange={(e) => setNewTagName(e.target.value)}
+            />
+            {tagError && <span className="field-error">{tagError}</span>}
           </form>
         )}
       </div>
