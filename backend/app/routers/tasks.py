@@ -5,7 +5,7 @@ from sqlalchemy import case, or_
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
-from app.models import List, Task, task_tags
+from app.models import List, Tag, Task, task_tags
 from app.schemas import TagOut, TaskCreate, TaskOut, TaskUpdate
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
@@ -23,6 +23,13 @@ def _get_list_or_404(db: Session, list_id: int) -> List:
     if list_ is None:
         raise HTTPException(status_code=404, detail="List not found")
     return list_
+
+
+def _get_tag_or_404(db: Session, tag_id: int) -> Tag:
+    tag = db.query(Tag).filter(Tag.id == tag_id).first()
+    if tag is None:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    return tag
 
 
 def _resolve_list_id(db: Session, list_id: int | None) -> int:
@@ -157,4 +164,33 @@ def delete_task(task_id: int, db: Session = Depends(get_db)):
     task = _get_task_or_404(db, task_id)
     db.delete(task)
     db.commit()
+    return Response(status_code=204)
+
+
+@router.get("/{task_id}/tags", response_model=list[TagOut])
+def get_task_tags(task_id: int, db: Session = Depends(get_db)):
+    task = _get_task_or_404(db, task_id)
+    return [TagOut(id=tag.id, name=tag.name) for tag in task.tags]
+
+
+@router.post("/{task_id}/tags/{tag_id}", response_model=TagOut)
+def assign_tag(task_id: int, tag_id: int, response: Response, db: Session = Depends(get_db)):
+    task = _get_task_or_404(db, task_id)
+    tag = _get_tag_or_404(db, tag_id)
+    if tag in task.tags:
+        response.status_code = 200
+    else:
+        task.tags.append(tag)
+        db.commit()
+        response.status_code = 201
+    return TagOut(id=tag.id, name=tag.name)
+
+
+@router.delete("/{task_id}/tags/{tag_id}", status_code=204)
+def unassign_tag(task_id: int, tag_id: int, db: Session = Depends(get_db)):
+    task = _get_task_or_404(db, task_id)
+    tag = _get_tag_or_404(db, tag_id)
+    if tag in task.tags:
+        task.tags.remove(tag)
+        db.commit()
     return Response(status_code=204)

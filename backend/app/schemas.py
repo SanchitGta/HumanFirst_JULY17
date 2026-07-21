@@ -48,6 +48,30 @@ class TagOut(BaseModel):
     name: str
 
 
+class TagCreate(BaseModel):
+    name: str
+
+    @field_validator("name")
+    @classmethod
+    def name_not_blank(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("name must not be empty")
+        return stripped
+
+
+class TagUpdate(BaseModel):
+    name: str
+
+    @field_validator("name")
+    @classmethod
+    def name_not_blank(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("name must not be empty")
+        return stripped
+
+
 class TaskCreate(BaseModel):
     title: str
     description: str | None = None
