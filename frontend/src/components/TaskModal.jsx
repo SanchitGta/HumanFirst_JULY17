@@ -1,14 +1,33 @@
 import { useState } from 'react'
+import TagMultiSelect from './TagMultiSelect.jsx'
 
-export default function TaskModal({ mode, task, lists, defaultListId, onSave, onRequestDelete, onClose }) {
+export default function TaskModal({
+  mode,
+  task,
+  lists,
+  defaultListId,
+  onSave,
+  onRequestDelete,
+  onClose,
+  allTags,
+  assignTag,
+  unassignTag,
+  onTagsChanged,
+}) {
   const isEdit = mode === 'edit'
   const [title, setTitle] = useState(task?.title ?? '')
   const [description, setDescription] = useState(task?.description ?? '')
   const [priority, setPriority] = useState(task?.priority ?? 'none')
   const [dueDate, setDueDate] = useState(task?.due_date ?? '')
   const [listId, setListId] = useState(task?.list_id ?? defaultListId)
+  const [selectedTagIds, setSelectedTagIds] = useState(task?.tags?.map((t) => t.id) ?? [])
+  const [createdTask, setCreatedTask] = useState(null)
   const [titleError, setTitleError] = useState(false)
   const [error, setError] = useState(null)
+
+  function toggleTag(id) {
+    setSelectedTagIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }
 
   async function handleSave() {
     const trimmedTitle = title.trim()
@@ -17,14 +36,39 @@ export default function TaskModal({ mode, task, lists, defaultListId, onSave, on
       return
     }
     setTitleError(false)
+    const payload = {
+      title: trimmedTitle,
+      description: description || null,
+      priority,
+      due_date: dueDate || null,
+      list_id: listId,
+    }
     try {
-      await onSave({
-        title: trimmedTitle,
-        description: description || null,
-        priority,
-        due_date: dueDate || null,
-        list_id: listId,
-      })
+      let taskId
+      let baselineTagIds
+      if (isEdit) {
+        await onSave(payload)
+        taskId = task.id
+        baselineTagIds = task.tags.map((t) => t.id)
+      } else if (createdTask) {
+        taskId = createdTask.id
+        baselineTagIds = createdTask.tags.map((t) => t.id)
+      } else {
+        const saved = await onSave(payload)
+        setCreatedTask(saved)
+        taskId = saved.id
+        baselineTagIds = []
+      }
+
+      const toAdd = selectedTagIds.filter((id) => !baselineTagIds.includes(id))
+      const toRemove = baselineTagIds.filter((id) => !selectedTagIds.includes(id))
+      if (toAdd.length > 0 || toRemove.length > 0) {
+        await Promise.all([
+          ...toAdd.map((id) => assignTag(taskId, id)),
+          ...toRemove.map((id) => unassignTag(taskId, id)),
+        ])
+        await onTagsChanged()
+      }
       onClose()
     } catch (err) {
       setError(err.message || 'Request failed')
@@ -104,6 +148,10 @@ export default function TaskModal({ mode, task, lists, defaultListId, onSave, on
               value={dueDate || ''}
               onChange={(e) => setDueDate(e.target.value)}
             />
+          </div>
+          <div className="field">
+            <label>Tags</label>
+            <TagMultiSelect allTags={allTags} selectedIds={selectedTagIds} onToggle={toggleTag} />
           </div>
           {error && <span className="field-error">{error}</span>}
         </div>

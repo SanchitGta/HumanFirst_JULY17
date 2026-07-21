@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { tasksApi } from '../api/client.js'
 
-export function useTasks(listId, { onMutated } = {}) {
+export function useTasks(listId, filterParams, { onMutated } = {}) {
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -10,7 +10,7 @@ export function useTasks(listId, { onMutated } = {}) {
     if (listId == null) return
     setLoading(true)
     try {
-      const data = await tasksApi.getTasks({ list_id: listId })
+      const data = await tasksApi.getTasks({ list_id: listId, ...filterParams })
       setTasks(data)
       setError(null)
     } catch (err) {
@@ -18,7 +18,7 @@ export function useTasks(listId, { onMutated } = {}) {
     } finally {
       setLoading(false)
     }
-  }, [listId])
+  }, [listId, filterParams])
 
   useEffect(() => {
     refetch()
@@ -26,9 +26,10 @@ export function useTasks(listId, { onMutated } = {}) {
 
   const createTask = useCallback(
     async (payload) => {
-      await tasksApi.createTask(payload)
+      const created = await tasksApi.createTask(payload)
       await refetch()
       onMutated?.()
+      return created
     },
     [refetch, onMutated],
   )
@@ -56,5 +57,24 @@ export function useTasks(listId, { onMutated } = {}) {
     [updateTask],
   )
 
-  return { tasks, loading, error, refetch, createTask, updateTask, deleteTask, toggleComplete }
+  const assignTagToTask = useCallback(async (taskId, tagId) => {
+    await tasksApi.assignTag(taskId, tagId)
+  }, [])
+
+  const unassignTagFromTask = useCallback(async (taskId, tagId) => {
+    await tasksApi.unassignTag(taskId, tagId)
+  }, [])
+
+  return {
+    tasks,
+    loading,
+    error,
+    refetch,
+    createTask,
+    updateTask,
+    deleteTask,
+    toggleComplete,
+    assignTagToTask,
+    unassignTagFromTask,
+  }
 }

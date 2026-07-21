@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useLists } from './hooks/useLists.js'
 import { useTasks } from './hooks/useTasks.js'
+import { useTags } from './hooks/useTags.js'
+import { useTaskFilters } from './hooks/useTaskFilters.js'
 import Sidebar from './components/Sidebar.jsx'
 import TaskListView from './components/TaskListView.jsx'
 import TaskModal from './components/TaskModal.jsx'
@@ -12,7 +14,9 @@ export default function App() {
   const [confirmState, setConfirmState] = useState(null)
 
   const lists = useLists()
-  const tasks = useTasks(selectedListId, { onMutated: lists.refetch })
+  const filters = useTaskFilters(selectedListId)
+  const tasks = useTasks(selectedListId, filters.params, { onMutated: lists.refetch })
+  const tags = useTags({ onMutated: tasks.refetch })
 
   useEffect(() => {
     if (selectedListId === null && lists.inboxId != null) {
@@ -27,11 +31,18 @@ export default function App() {
     }
   }
 
+  async function handleDeleteTag(tagId) {
+    await tags.deleteTag(tagId)
+    if (filters.tagId === tagId) filters.setTagId('all')
+  }
+
   async function handleConfirm() {
     if (confirmState.kind === 'deleteTask') {
       await tasks.deleteTask(confirmState.target.id)
     } else if (confirmState.kind === 'deleteList') {
       await handleDeleteList(confirmState.target.id)
+    } else if (confirmState.kind === 'deleteTag') {
+      await handleDeleteTag(confirmState.target.id)
     }
     setConfirmState(null)
   }
@@ -53,6 +64,10 @@ export default function App() {
           onCreateList={lists.createList}
           onRenameList={lists.renameList}
           onRequestDeleteList={(list) => setConfirmState({ kind: 'deleteList', target: list })}
+          tags={tags.tags}
+          onCreateTag={tags.createTag}
+          onRenameTag={tags.renameTag}
+          onRequestDeleteTag={(tag) => setConfirmState({ kind: 'deleteTag', target: tag })}
         />
         {selectedListId != null && (
           <TaskListView
@@ -67,6 +82,8 @@ export default function App() {
             onOpenEdit={(task) => setTaskModalState({ mode: 'edit', task })}
             onRequestDeleteTask={(task) => setConfirmState({ kind: 'deleteTask', target: task })}
             onQuickAdd={tasks.createTask}
+            tags={tags.tags}
+            filters={filters}
           />
         )}
       </div>
@@ -87,20 +104,38 @@ export default function App() {
             setConfirmState({ kind: 'deleteTask', target: task })
           }}
           onClose={() => setTaskModalState(null)}
+          allTags={tags.tags}
+          assignTag={tasks.assignTagToTask}
+          unassignTag={tasks.unassignTagFromTask}
+          onTagsChanged={tasks.refetch}
         />
       )}
 
       {confirmState && (
         <ConfirmDialog
-          title={confirmState.kind === 'deleteList' ? `Delete "${confirmState.target.name}"?` : 'Delete this task?'}
+          title={
+            confirmState.kind === 'deleteList'
+              ? `Delete "${confirmState.target.name}"?`
+              : confirmState.kind === 'deleteTag'
+                ? `Delete tag "${confirmState.target.name}"?`
+                : 'Delete this task?'
+          }
           message={
             confirmState.kind === 'deleteList'
               ? confirmState.target.task_count > 0
                 ? `${confirmState.target.task_count} task(s) in this list will be moved to Inbox instead of being deleted.`
                 : 'This list has no tasks. It will be removed permanently.'
-              : "This can't be undone."
+              : confirmState.kind === 'deleteTag'
+                ? "If this tag is assigned to any tasks, it will be removed from them. This can't be undone."
+                : "This can't be undone."
           }
-          confirmLabel={confirmState.kind === 'deleteList' ? 'Delete list' : 'Delete task'}
+          confirmLabel={
+            confirmState.kind === 'deleteList'
+              ? 'Delete list'
+              : confirmState.kind === 'deleteTag'
+                ? 'Delete tag'
+                : 'Delete task'
+          }
           onConfirm={handleConfirm}
           onCancel={() => setConfirmState(null)}
         />

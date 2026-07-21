@@ -1,6 +1,8 @@
 import QuickAddForm from './QuickAddForm.jsx'
 import TaskRow from './TaskRow.jsx'
 import EmptyState from './EmptyState.jsx'
+import SearchBar from './SearchBar.jsx'
+import FilterBar from './FilterBar.jsx'
 import { isOverdue, isDueToday } from '../utils/date.js'
 
 export default function TaskListView({
@@ -15,6 +17,8 @@ export default function TaskListView({
   onOpenEdit,
   onRequestDeleteTask,
   onQuickAdd,
+  tags,
+  filters,
 }) {
   return (
     <main className="main">
@@ -23,6 +27,7 @@ export default function TaskListView({
           <h1>{listName}</h1>
           <span className="task-total">{tasks.length} tasks</span>
           <div className="topbar-actions">
+            <SearchBar value={filters.search} onChange={filters.setSearch} />
             <button className="btn btn-primary" onClick={onOpenCreate}>
               New Task
             </button>
@@ -32,6 +37,26 @@ export default function TaskListView({
 
       <div className="quick-add-wrap">
         <QuickAddForm listId={listId} onSubmit={onQuickAdd} />
+      </div>
+
+      <div className="filter-bar-wrap">
+        <FilterBar
+          status={filters.status}
+          priority={filters.priority}
+          tagId={filters.tagId}
+          sort={filters.sort}
+          order={filters.order}
+          search={filters.search}
+          tags={tags}
+          hasActiveFilters={filters.hasActiveFilters}
+          onStatusChange={filters.setStatus}
+          onPriorityChange={filters.setPriority}
+          onTagChange={filters.setTagId}
+          onSortChange={filters.setSort}
+          onOrderChange={filters.setOrder}
+          onSearchClear={() => filters.setSearch('')}
+          onClearAll={filters.clearFilters}
+        />
       </div>
 
       <div className="task-list-container">
