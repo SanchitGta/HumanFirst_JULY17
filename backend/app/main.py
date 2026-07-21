@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, SessionLocal, engine
-from app.routers import lists, tasks
+from app.routers import lists, tags, tasks
 from app.seed import seed_inbox
 
 
@@ -37,3 +37,4 @@ def health():
 
 app.include_router(lists.router)
 app.include_router(tasks.router)
+app.include_router(tags.router)
